@@ -8,6 +8,7 @@ Install npm:
 npm init -y  
 npm install express mongoose cors body-parser dotenv  
 npm install --save-dev nodemon  
+npm install bcryptjs jsonwebtoken  
     
 Run the server:  
 nodemon server.js  
