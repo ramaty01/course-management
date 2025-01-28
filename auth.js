@@ -8,13 +8,22 @@ const SECRET_KEY = 'your_secret_key';
 
 // Register a user
 router.post('/register', async (req, res) => {
-  const { username, password, role } = req.body;
+  const { email, username, password, role } = req.body;
+
   try {
-    const user = new User({ username, password, role });
+    // Check if the email or username already exists
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email or username already exists' });
+    }
+
+    // Create a new user
+    const user = new User({ email, username, password, role });
     await user.save();
     res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
-    res.status(400).json({ error: 'Registration failed' });
+    console.error('Error during registration:', error);
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
 
