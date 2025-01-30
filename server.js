@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const Course = require('./models/Course');
+const Comment = require('./models/Comment');
 const CourseModule = require('./models/CourseModule');
 const CourseNote = require('./models/CourseNote');
 require ('dotenv').config();
@@ -208,6 +209,71 @@ app.delete('/notes/:noteId', verifyToken(['admin']), async (req, res) => {
     res.json({ message: 'Note deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
+// ========== COMMENT ROUTES ========== //
+
+// Add a comment to a course note
+app.post('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async (req, res) => {
+  try {
+    const comment = new Comment({
+      userId: req.user.id,
+      courseNoteId: req.params.courseNoteId,
+      content: req.body.content,
+    });
+    await comment.save();
+    res.status(201).json(comment);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+// Get all comments for a course note
+app.get('/notes/:courseNoteId/comments', async (req, res) => {
+  try {
+    const comments = await Comment.find({ courseNoteId: req.params.courseNoteId });
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+// Upvote a comment
+app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    comment.votes += 1;
+    await comment.save();
+    res.json(comment);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to upvote comment' });
+  }
+});
+
+// Flag a comment (Admin only)
+app.put('/comments/:commentId/flag', verifyToken(['admin']), async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    comment.isFlagged = true;
+    await comment.save();
+    res.json(comment);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to flag comment' });
+  }
+});
+
+// Delete a comment (Admin only)
+app.delete('/comments/:commentId', verifyToken(['admin']), async (req, res) => {
+  try {
+    await Comment.findByIdAndDelete(req.params.commentId);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete comment' });
   }
 });
 
