@@ -2,13 +2,19 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-require ('dotenv').config();
-const { router: authRoutes, verifyToken } = require('./auth');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const User = require('./models/User');
 const Course = require('./models/Course');
+const CourseModule = require('./models/CourseModule');
+const CourseNote = require('./models/CourseNote');
+require ('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+const SECRET_KEY = 'your_secret_key';
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
@@ -16,10 +22,75 @@ mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true,
 });
 
-// Authentication routes
-app.use('/auth', authRoutes);
+// Middleware to verify token and roles
+const verifyToken = (roles = []) => {
+  return (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-// Routes for course management
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY);
+      req.user = decoded;
+      if (roles.length && !roles.includes(decoded.role)) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      next();
+    } catch (error) {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  };
+};
+
+// ========== AUTH ROUTES ========== //
+
+// Register new user
+app.post('/auth/register', async (req, res) => {
+  const { email, username, password, role } = req.body;
+
+  try {
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) return res.status(400).json({ error: 'Email or username already exists' });
+
+    const user = new User({ email, username, password, role });
+    await user.save();
+    res.status(201).json({ message: 'User registered successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Login user
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const user = await User.findOne({ username });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign({ id: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1d' });
+    res.json({ token, role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Verify token and get user role
+app.get('/auth/verify', verifyToken(), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to verify user' });
+  }
+});
+
+// ========== COURSE ROUTES ========== //
+
+// Create a new course (Admin only)
 app.post('/courses', verifyToken(['admin']), async (req, res) => {
   try {
     const course = new Course(req.body);
@@ -30,6 +101,7 @@ app.post('/courses', verifyToken(['admin']), async (req, res) => {
   }
 });
 
+// Get all courses
 app.get('/courses', async (req, res) => {
   try {
     const courses = await Course.find();
@@ -39,67 +111,106 @@ app.get('/courses', async (req, res) => {
   }
 });
 
-app.post('/courses/:courseId/assignments', verifyToken(['admin']), async (req, res) => {
+// ========== COURSE MODULE ROUTES ========== //
+
+// Add a module to a course (Admin only)
+app.post('/courses/:courseId/modules', verifyToken(['admin']), async (req, res) => {
+  const { courseId } = req.params;
+  const { name } = req.body;
+
   try {
-    const { courseId } = req.params;
-    const assignment = req.body;
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' });
-    }
-    course.assignments.push(assignment);
-    await course.save();
-    res.status(201).json(course);
+    const module = new CourseModule({ name, courseId });
+    await module.save();
+    res.status(201).json(module);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to add assignment' });
+    res.status(500).json({ error: 'Failed to add module' });
   }
 });
 
-app.post('/courses/:courseId/assignments/:assignmentId/notes', verifyToken(['admin', 'user']), async (req, res) => {
+// Get all modules for a course
+app.get('/courses/:courseId/modules', async (req, res) => {
+  const { courseId } = req.params;
+
   try {
-    const { courseId, assignmentId } = req.params;
-    const note = req.body;
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' });
-    }
-    const assignment = course.assignments.id(assignmentId);
-    if (!assignment) {
-      return res.status(404).json({ error: 'Assignment not found' });
-    }
-    assignment.notes.push(note);
-    await course.save();
-    res.status(201).json(course);
+    const modules = await CourseModule.find({ courseId });
+    res.json(modules);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch modules' });
+  }
+});
+
+// ========== COURSE NOTE ROUTES ========== //
+
+// Add a note to a module (Registered Users)
+app.post('/modules/:moduleId/notes', verifyToken(['user', 'admin']), async (req, res) => {
+  const { moduleId } = req.params;
+  const { content } = req.body;
+
+  try {
+    const note = new CourseNote({ userId: req.user.id, moduleId, content });
+    await note.save();
+    res.status(201).json(note);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add note' });
   }
 });
 
-app.get('/courses/:courseId/assignments/:assignmentId/notes', async (req, res) => {
-  const { courseId, assignmentId } = req.params;
+// Get all notes for a module (All Users)
+app.get('/modules/:moduleId/notes', async (req, res) => {
+  const { moduleId } = req.params;
 
   try {
-    // Find the course by ID
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' });
-    }
-
-    // Find the assignment by ID within the course
-    const assignment = course.assignments.id(assignmentId);
-    if (!assignment) {
-      return res.status(404).json({ error: 'Assignment not found' });
-    }
-
-    // Respond with the notes from the assignment
-    res.json(assignment.notes);
+    const notes = await CourseNote.find({ moduleId });
+    res.json(notes);
   } catch (error) {
-    console.error('Error fetching notes:', error);
     res.status(500).json({ error: 'Failed to fetch notes' });
   }
 });
 
+// Upvote a note (Registered Users)
+app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) => {
+  const { noteId } = req.params;
 
-// Start the server
+  try {
+    const note = await CourseNote.findById(noteId);
+    if (!note) return res.status(404).json({ error: 'Note not found' });
+
+    note.votes += 1;
+    await note.save();
+    res.json(note);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to upvote note' });
+  }
+});
+
+// Flag a note (Admin only)
+app.put('/notes/:noteId/flag', verifyToken(['admin']), async (req, res) => {
+  const { noteId } = req.params;
+
+  try {
+    const note = await CourseNote.findById(noteId);
+    if (!note) return res.status(404).json({ error: 'Note not found' });
+
+    note.isFlagged = true;
+    await note.save();
+    res.json(note);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to flag note' });
+  }
+});
+
+// Delete a note (Admin only)
+app.delete('/notes/:noteId', verifyToken(['admin']), async (req, res) => {
+  const { noteId } = req.params;
+
+  try {
+    await CourseNote.findByIdAndDelete(noteId);
+    res.json({ message: 'Note deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
+// Start server
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
