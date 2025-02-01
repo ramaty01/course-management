@@ -161,26 +161,42 @@ app.get('/modules/:moduleId/notes', async (req, res) => {
   const { moduleId } = req.params;
 
   try {
-    const notes = await CourseNote.find({ moduleId });
+    const notes = await CourseNote.find({ moduleId, isFlagged: false });
     res.json(notes);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch notes' });
   }
 });
 
-// Upvote a note (Registered Users)
+// ========== UPVOTE / DOWNVOTE A NOTE ========== //
 app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) => {
   const { noteId } = req.params;
+  const { voteType } = req.body; // "upvote" or "downvote"
+  const userId = req.user.id;
 
   try {
     const note = await CourseNote.findById(noteId);
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
-    note.votes += 1;
+    if (note.votedUsers.includes(userId)) {
+      return res.status(400).json({ error: 'User has already voted on this note' });
+    }
+
+    if (voteType === 'upvote') {
+      note.votes += 1;
+    } else if (voteType === 'downvote') {
+      note.votes -= 1;
+    } else {
+      return res.status(400).json({ error: 'Invalid vote type' });
+    }
+    if (note.votes <= -1) {
+      note.isFlagged = true
+    }
+    note.votedUsers.push(userId); // Track user who voted
     await note.save();
     res.json(note);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to upvote note' });
+    res.status(500).json({ error: 'Failed to vote on note' });
   }
 });
 
@@ -232,24 +248,44 @@ app.post('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async 
 // Get all comments for a course note
 app.get('/notes/:courseNoteId/comments', async (req, res) => {
   try {
-    const comments = await Comment.find({ courseNoteId: req.params.courseNoteId });
+    const comments = await Comment.find({ courseNoteId: req.params.courseNoteId, isFlagged: false });
     res.json(comments);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch comments' });
   }
 });
 
-// Upvote a comment
+// ========== UPDATED: UPVOTE / DOWNVOTE A COMMENT ========== //
 app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req, res) => {
+  const { commentId } = req.params;
+  const { voteType } = req.body; // "upvote" or "downvote"
+  const userId = req.user.id;
+
   try {
-    const comment = await Comment.findById(req.params.commentId);
+    const comment = await Comment.findById(commentId);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
-    comment.votes += 1;
+    if (comment.votedUsers.includes(userId)) {
+      return res.status(400).json({ error: 'User has already voted on this comment' });
+    }
+
+    if (voteType === 'upvote') {
+      comment.votes += 1;
+    } else if (voteType === 'downvote') {
+      comment.votes -= 1;
+    } else {
+      return res.status(400).json({ error: 'Invalid vote type' });
+    }
+
+    if (comment.votes <= -1) {
+      comment.isFlagged = true
+    }
+
+    comment.votedUsers.push(userId);
     await comment.save();
     res.json(comment);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to upvote comment' });
+    res.status(500).json({ error: 'Failed to vote on comment' });
   }
 });
 

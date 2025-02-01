@@ -7,6 +7,7 @@ const CommentSchema = new mongoose.Schema({
   votes: { type: Number, default: 0 },
   isFlagged: { type: Boolean, default: false },
   content: String,
+  votedUsers: { type: [String], default: [] }, 
 });
 
 const Comment = mongoose.model('Comment', CommentSchema);
