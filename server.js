@@ -71,7 +71,7 @@ app.post('/auth/login', async (req, res) => {
     }
 
     const token = jwt.sign({ id: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1d' });
-    res.json({ token, role: user.role });
+    res.json({ token, role: user.role, userId: user._id });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
   }
@@ -112,6 +112,21 @@ app.get('/courses', async (req, res) => {
   }
 });
 
+// Delete a course (Admin only)
+app.delete('/courses/:courseId', verifyToken(['admin']), async (req, res) => {
+  const { courseId } = req.params;
+
+  try {
+    const course = await Course.findById(courseId);
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    await Course.findByIdAndDelete(courseId);
+    res.json({ message: 'Course deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete course' });
+  }
+});
+
 // ========== COURSE MODULE ROUTES ========== //
 
 // Add a module to a course (Admin only)
@@ -127,6 +142,22 @@ app.post('/courses/:courseId/modules', verifyToken(['admin']), async (req, res) 
     res.status(500).json({ error: 'Failed to add module' });
   }
 });
+
+// Delete a module to a course (Admin only)
+app.delete('/modules/:moduleId', verifyToken(['admin']), async (req, res) => {
+  const { moduleId } = req.params;
+
+  try {
+    const module = await CourseModule.findById(moduleId);
+    if (!module) return res.status(404).json({ error: 'Module not found' });
+
+    await CourseModule.findByIdAndDelete(moduleId);
+    res.json({ message: 'Module deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete module' });
+  }
+});
+
 
 // Get all modules for a course
 app.get('/courses/:courseId/modules', async (req, res) => {
@@ -161,12 +192,35 @@ app.get('/modules/:moduleId/notes', async (req, res) => {
   const { moduleId } = req.params;
 
   try {
-    const notes = await CourseNote.find({ moduleId, isFlagged: false });
+    const notes = await CourseNote.find({ moduleId, isFlagged: false })
+      .populate('userId', 'username'); // Only get the username field
     res.json(notes);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch notes' });
   }
 });
+
+
+// Delete a note to a module (Registered User as author or admin)
+app.delete('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
+  const { noteId } = req.params;
+
+  try {
+    const note = await CourseNote.findById(noteId);
+    if (!note) return res.status(404).json({ error: 'Note not found' });
+
+    // Allow deletion if user is admin or the note's author
+    if (req.user.role !== 'admin' && req.user.id !== note.userId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    await CourseNote.findByIdAndDelete(noteId);
+    res.json({ message: 'Note deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
 
 // ========== UPVOTE / DOWNVOTE A NOTE ========== //
 app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) => {
@@ -216,18 +270,6 @@ app.put('/notes/:noteId/flag', verifyToken(['admin']), async (req, res) => {
   }
 });
 
-// Delete a note (Admin only)
-app.delete('/notes/:noteId', verifyToken(['admin']), async (req, res) => {
-  const { noteId } = req.params;
-
-  try {
-    await CourseNote.findByIdAndDelete(noteId);
-    res.json({ message: 'Note deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete note' });
-  }
-});
-
 // ========== COMMENT ROUTES ========== //
 
 // Add a comment to a course note
@@ -245,10 +287,32 @@ app.post('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async 
   }
 });
 
+// Delete a note to a module (Registered User as author or admin)
+app.delete('/comments/:commentId', verifyToken(['user', 'admin']), async (req, res) => {
+  const { commentId } = req.params;
+
+  try {
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    // Allow deletion if user is admin or the comment's author
+    if (req.user.role !== 'admin' && req.user.id !== comment.userId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    await Comment.findByIdAndDelete(commentId);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete comment' });
+  }
+});
+
+
 // Get all comments for a course note
 app.get('/notes/:courseNoteId/comments', async (req, res) => {
   try {
-    const comments = await Comment.find({ courseNoteId: req.params.courseNoteId, isFlagged: false });
+    const comments = await Comment.find({ courseNoteId: req.params.courseNoteId, isFlagged: false })
+      .populate('userId', 'username'); // Only get the username field
     res.json(comments);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch comments' });
@@ -300,16 +364,6 @@ app.put('/comments/:commentId/flag', verifyToken(['admin']), async (req, res) =>
     res.json(comment);
   } catch (error) {
     res.status(500).json({ error: 'Failed to flag comment' });
-  }
-});
-
-// Delete a comment (Admin only)
-app.delete('/comments/:commentId', verifyToken(['admin']), async (req, res) => {
-  try {
-    await Comment.findByIdAndDelete(req.params.commentId);
-    res.json({ message: 'Comment deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete comment' });
   }
 });
 

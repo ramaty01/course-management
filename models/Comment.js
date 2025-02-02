@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const CommentSchema = new mongoose.Schema({
-  userId: String,
-  courseNoteId: String,
+  userId: {type: String, ref: 'User'},
+  courseNoteId: {type: String, ref: 'CourseNote'},
   timestamp: { type: Date, default: Date.now },
   votes: { type: Number, default: 0 },
   isFlagged: { type: Boolean, default: false },
