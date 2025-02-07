@@ -5,7 +5,7 @@ const CourseSchema = new mongoose.Schema({
   description: String,
   semester: String,
   year: Number,
-  format: { type: String, enum: ['admin', 'user']},
+  format: { type: String, enum: ['online', 'in-person', 'hybrid'] },
 });
 
 const Course = mongoose.model('Course', CourseSchema);

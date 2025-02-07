@@ -93,6 +93,18 @@ app.get('/auth/verify', verifyToken(), async (req, res) => {
 
 // Create a new course (Admin only)
 app.post('/courses', verifyToken(['admin']), async (req, res) => {
+  const { name, description, semester, year, format } = req.body;
+
+  // Ensure all fields are provided
+  if (!name || !description || !semester || !year || !format) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // Validate format
+  if (!['online', 'in-person', 'hybrid'].includes(format)) {
+    return res.status(400).json({ error: 'Invalid format type' });
+  }
+
   try {
     const course = new Course(req.body);
     await course.save();
@@ -126,6 +138,37 @@ app.delete('/courses/:courseId', verifyToken(['admin']), async (req, res) => {
     res.status(500).json({ error: 'Failed to delete course' });
   }
 });
+
+// Edit a course (Admin only)
+app.put('/courses/:courseId', verifyToken(['admin']), async (req, res) => {
+  const { courseId } = req.params;
+  const { name, description, semester, year, format } = req.body;
+
+  if (!name || !description || !semester || !year || !format) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  if (!['online', 'in-person', 'hybrid'].includes(format)) {
+    return res.status(400).json({ error: 'Invalid format type' });
+  }
+
+  try {
+    const updatedCourse = await Course.findByIdAndUpdate(
+      courseId,
+      { name, description, semester, year, format },
+      { new: true }
+    );
+
+    if (!updatedCourse) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    res.json(updatedCourse);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update course' });
+  }
+});
+
 
 // ========== COURSE MODULE ROUTES ========== //
 
@@ -171,6 +214,42 @@ app.get('/courses/:courseId/modules', async (req, res) => {
   }
 });
 
+// Get modules
+app.get('/modules', async (req, res) => {
+  try {
+    const modules = await CourseModule.find();
+    res.json(modules);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch modules' });
+  }
+});
+
+app.put('/modules/:moduleId', verifyToken(['admin']), async (req, res) => {
+  const { moduleId } = req.params;
+  const { name } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Module name is required' });
+  }
+
+  try {
+    const updatedModule = await CourseModule.findByIdAndUpdate(
+      moduleId,
+      { name },
+      { new: true }
+    );
+
+    if (!updatedModule) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    res.json(updatedModule);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update module' });
+  }
+});
+
+
 // ========== COURSE NOTE ROUTES ========== //
 
 // Add a note to a module (Registered Users)
@@ -200,6 +279,15 @@ app.get('/modules/:moduleId/notes', async (req, res) => {
   }
 });
 
+// Get notes
+app.get('/notes', async (req, res) => {
+  try {
+    const modules = await CourseNote.find();
+    res.json(modules);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch modules' });
+  }
+});
 
 // Delete a note to a module (Registered User as author or admin)
 app.delete('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
@@ -220,6 +308,35 @@ app.delete('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) =>
     res.status(500).json({ error: 'Failed to delete note' });
   }
 });
+
+// Update a note (Registered User as author or admin)
+app.put('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
+  const { noteId } = req.params;
+  const { content } = req.body;
+  const userId = req.user.id; // Get the logged-in user's ID
+
+  if (!content) {
+    return res.status(400).json({ error: 'Note content is required' });
+  }
+
+  try {
+    const note = await CourseNote.findById(noteId);
+    if (!note) return res.status(404).json({ error: 'Note not found' });
+
+    // Check if the user is an admin or the author of the note
+    if (req.user.role !== 'admin' && note.userId.toString() !== userId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    // Update note content
+    note.content = content;
+    await note.save();
+    res.json(note);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update note' });
+  }
+});
+
 
 
 // ========== UPVOTE / DOWNVOTE A NOTE ========== //
@@ -318,6 +435,45 @@ app.get('/notes/:courseNoteId/comments', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch comments' });
   }
 });
+
+// Get comments
+app.get('/comments', async (req, res) => {
+  try {
+    const modules = await Comment.find();
+    res.json(modules);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch modules' });
+  }
+});
+
+// Edit a comment (Registered User as author or admin)
+app.put('/comments/:commentId', verifyToken(['user', 'admin']), async (req, res) => {
+  const { commentId } = req.params;
+  const { content } = req.body;
+  const userId = req.user.id; // Get the logged-in user's ID
+
+  if (!content) {
+    return res.status(400).json({ error: 'Comment content is required' });
+  }
+
+  try {
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    // Check if the user is an admin or the author of the comment
+    if (req.user.role !== 'admin' && comment.userId.toString() !== userId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    // Update comment content
+    comment.content = content;
+    await comment.save();
+    res.json(comment);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update comment' });
+  }
+});
+
 
 // ========== UPDATED: UPVOTE / DOWNVOTE A COMMENT ========== //
 app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req, res) => {
