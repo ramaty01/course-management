@@ -3,6 +3,8 @@ git clone git@github.com:ramaty01/course-management.git
     
 Add a .env file with this content:  
 MONGO_URI=mongodb+srv://<user>:<pwd>@coursesdb.ms9b6.mongodb.net/?retryWrites=true&w=majority&appName=coursesDB  
+EMAIL_USER=cs633coursenoteapp@gmail.com  
+EMAIL_PASS=eadscvkdnqnfwwop  
     
 Install npm:  
 npm init -y  
