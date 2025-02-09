@@ -9,6 +9,7 @@ const Course = require('./models/Course');
 const Comment = require('./models/Comment');
 const CourseModule = require('./models/CourseModule');
 const CourseNote = require('./models/CourseNote');
+const { sendFlaggedEmail } = require('./emailService');
 require ('dotenv').config();
 
 const app = express();
@@ -267,12 +268,20 @@ app.post('/modules/:moduleId/notes', verifyToken(['user', 'admin']), async (req,
 });
 
 // Get all notes for a module (All Users)
-app.get('/modules/:moduleId/notes', async (req, res) => {
+app.get('/modules/:moduleId/notes', verifyToken(['user', 'admin']), async (req, res) => {
   const { moduleId } = req.params;
 
   try {
-    const notes = await CourseNote.find({ moduleId, isFlagged: false })
-      .populate('userId', 'username'); // Only get the username field
+    let notes;
+
+    // If the user is an admin, fetch all notes (including flagged ones)
+    if (req.user.role === 'admin') {
+      notes = await CourseNote.find({ moduleId }).populate('userId', 'username');
+    } else {
+      // Regular users only see unflagged notes
+      notes = await CourseNote.find({ moduleId, isFlagged: false }).populate('userId', 'username');
+    }
+
     res.json(notes);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch notes' });
@@ -346,7 +355,7 @@ app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) 
   const userId = req.user.id;
 
   try {
-    const note = await CourseNote.findById(noteId);
+    const note = await CourseNote.findById(noteId).populate('userId', 'email username');
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     if (note.votedUsers.includes(userId)) {
@@ -362,6 +371,9 @@ app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) 
     }
     if (note.votes <= -1) {
       note.isFlagged = true
+      if (note.userId.email) {
+        await sendFlaggedEmail(note.userId.email, note.content);
+      }
     }
     note.votedUsers.push(userId); // Track user who voted
     await note.save();
@@ -426,10 +438,15 @@ app.delete('/comments/:commentId', verifyToken(['user', 'admin']), async (req, r
 
 
 // Get all comments for a course note
-app.get('/notes/:courseNoteId/comments', async (req, res) => {
+app.get('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async (req, res) => {
   try {
-    const comments = await Comment.find({ courseNoteId: req.params.courseNoteId, isFlagged: false })
-      .populate('userId', 'username'); // Only get the username field
+    let comments;
+    if (req.user.role === 'admin') {
+      comments = await Comment.find({ courseNoteId: req.params.courseNoteId }).populate('userId', 'username');
+    } else {
+      comments = await Comment.find({ courseNoteId: req.params.courseNoteId, isFlagged: false })
+        .populate('userId', 'username'); // Only get the username field
+    }
     res.json(comments);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch comments' });
@@ -482,7 +499,7 @@ app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req,
   const userId = req.user.id;
 
   try {
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findById(commentId).populate('userId', 'email username');
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
     if (comment.votedUsers.includes(userId)) {
@@ -499,6 +516,9 @@ app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req,
 
     if (comment.votes <= -1) {
       comment.isFlagged = true
+      if (comment.userId.email) {
+        await sendFlaggedEmail(comment.userId.email, comment.content);
+      }
     }
 
     comment.votedUsers.push(userId);

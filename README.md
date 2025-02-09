@@ -6,7 +6,7 @@ MONGO_URI=mongodb+srv://<user>:<pwd>@coursesdb.ms9b6.mongodb.net/?retryWrites=tr
     
 Install npm:  
 npm init -y  
-npm install express mongoose cors body-parser dotenv  
+npm install express mongoose cors body-parser dotenv nodemailer
 npm install --save-dev nodemon  
 npm install bcryptjs jsonwebtoken  
     
