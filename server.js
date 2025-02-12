@@ -174,7 +174,7 @@ app.put('/courses/:courseId', verifyToken(['admin']), async (req, res) => {
 // ========== COURSE MODULE ROUTES ========== //
 
 // Add a module to a course (Admin only)
-app.post('/courses/:courseId/modules', verifyToken(['admin']), async (req, res) => {
+app.post('/courses/:courseId/modules', verifyToken(['admin', 'teacher']), async (req, res) => {
   const { courseId } = req.params;
   const { name } = req.body;
 
@@ -188,7 +188,7 @@ app.post('/courses/:courseId/modules', verifyToken(['admin']), async (req, res) 
 });
 
 // Delete a module to a course (Admin only)
-app.delete('/modules/:moduleId', verifyToken(['admin']), async (req, res) => {
+app.delete('/modules/:moduleId', verifyToken(['admin', 'teacher']), async (req, res) => {
   const { moduleId } = req.params;
 
   try {
@@ -225,7 +225,7 @@ app.get('/modules', async (req, res) => {
   }
 });
 
-app.put('/modules/:moduleId', verifyToken(['admin']), async (req, res) => {
+app.put('/modules/:moduleId', verifyToken(['admin', 'teacher']), async (req, res) => {
   const { moduleId } = req.params;
   const { name } = req.body;
 
@@ -254,7 +254,7 @@ app.put('/modules/:moduleId', verifyToken(['admin']), async (req, res) => {
 // ========== COURSE NOTE ROUTES ========== //
 
 // Add a note to a module (Registered Users)
-app.post('/modules/:moduleId/notes', verifyToken(['user', 'admin']), async (req, res) => {
+app.post('/modules/:moduleId/notes', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { moduleId } = req.params;
   const { content } = req.body;
 
@@ -268,14 +268,14 @@ app.post('/modules/:moduleId/notes', verifyToken(['user', 'admin']), async (req,
 });
 
 // Get all notes for a module (All Users)
-app.get('/modules/:moduleId/notes', verifyToken(['user', 'admin']), async (req, res) => {
+app.get('/modules/:moduleId/notes', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { moduleId } = req.params;
 
   try {
     let notes;
 
     // If the user is an admin, fetch all notes (including flagged ones)
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'admin' || req.user.role === 'teacher') {
       notes = await CourseNote.find({ moduleId }).populate('userId', 'username');
     } else {
       // Regular users only see unflagged notes
@@ -299,7 +299,7 @@ app.get('/notes', async (req, res) => {
 });
 
 // Delete a note to a module (Registered User as author or admin)
-app.delete('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
+app.delete('/notes/:noteId', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { noteId } = req.params;
 
   try {
@@ -307,7 +307,7 @@ app.delete('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) =>
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     // Allow deletion if user is admin or the note's author
-    if (req.user.role !== 'admin' && req.user.id !== note.userId) {
+    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && req.user.id !== note.userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -319,7 +319,7 @@ app.delete('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) =>
 });
 
 // Update a note (Registered User as author or admin)
-app.put('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
+app.put('/notes/:noteId', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { noteId } = req.params;
   const { content } = req.body;
   const userId = req.user.id; // Get the logged-in user's ID
@@ -333,7 +333,7 @@ app.put('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     // Check if the user is an admin or the author of the note
-    if (req.user.role !== 'admin' && note.userId.toString() !== userId) {
+    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && note.userId.toString() !== userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -349,7 +349,7 @@ app.put('/notes/:noteId', verifyToken(['user', 'admin']), async (req, res) => {
 
 
 // ========== UPVOTE / DOWNVOTE A NOTE ========== //
-app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) => {
+app.put('/notes/:noteId/vote', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { noteId } = req.params;
   const { voteType } = req.body; // "upvote" or "downvote"
   const userId = req.user.id;
@@ -384,7 +384,7 @@ app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) 
 });
 
 // Flag a note (Admin only)
-app.put('/notes/:noteId/flag', verifyToken(['admin']), async (req, res) => {
+app.put('/notes/:noteId/flag', verifyToken(['admin', 'teacher']), async (req, res) => {
   const { noteId } = req.params;
 
   try {
@@ -402,7 +402,7 @@ app.put('/notes/:noteId/flag', verifyToken(['admin']), async (req, res) => {
 // ========== COMMENT ROUTES ========== //
 
 // Add a comment to a course note
-app.post('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async (req, res) => {
+app.post('/notes/:courseNoteId/comments', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   try {
     const comment = new Comment({
       userId: req.user.id,
@@ -417,7 +417,7 @@ app.post('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async 
 });
 
 // Delete a note to a module (Registered User as author or admin)
-app.delete('/comments/:commentId', verifyToken(['user', 'admin']), async (req, res) => {
+app.delete('/comments/:commentId', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { commentId } = req.params;
 
   try {
@@ -425,7 +425,7 @@ app.delete('/comments/:commentId', verifyToken(['user', 'admin']), async (req, r
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
     // Allow deletion if user is admin or the comment's author
-    if (req.user.role !== 'admin' && req.user.id !== comment.userId) {
+    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && req.user.id !== comment.userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -438,10 +438,10 @@ app.delete('/comments/:commentId', verifyToken(['user', 'admin']), async (req, r
 
 
 // Get all comments for a course note
-app.get('/notes/:courseNoteId/comments', verifyToken(['user', 'admin']), async (req, res) => {
+app.get('/notes/:courseNoteId/comments', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   try {
     let comments;
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'admin' || req.user.role === 'teacher') {
       comments = await Comment.find({ courseNoteId: req.params.courseNoteId }).populate('userId', 'username');
     } else {
       comments = await Comment.find({ courseNoteId: req.params.courseNoteId, isFlagged: false })
@@ -464,7 +464,7 @@ app.get('/comments', async (req, res) => {
 });
 
 // Edit a comment (Registered User as author or admin)
-app.put('/comments/:commentId', verifyToken(['user', 'admin']), async (req, res) => {
+app.put('/comments/:commentId', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { commentId } = req.params;
   const { content } = req.body;
   const userId = req.user.id; // Get the logged-in user's ID
@@ -478,7 +478,7 @@ app.put('/comments/:commentId', verifyToken(['user', 'admin']), async (req, res)
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
     // Check if the user is an admin or the author of the comment
-    if (req.user.role !== 'admin' && comment.userId.toString() !== userId) {
+    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && comment.userId.toString() !== userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -493,7 +493,7 @@ app.put('/comments/:commentId', verifyToken(['user', 'admin']), async (req, res)
 
 
 // ========== UPDATED: UPVOTE / DOWNVOTE A COMMENT ========== //
-app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req, res) => {
+app.put('/comments/:commentId/vote', verifyToken(['user', 'admin', 'teacher']), async (req, res) => {
   const { commentId } = req.params;
   const { voteType } = req.body; // "upvote" or "downvote"
   const userId = req.user.id;
@@ -530,7 +530,7 @@ app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req,
 });
 
 // Flag a comment (Admin only)
-app.put('/comments/:commentId/flag', verifyToken(['admin']), async (req, res) => {
+app.put('/comments/:commentId/flag', verifyToken(['admin', 'teacher']), async (req, res) => {
   try {
     const comment = await Comment.findById(req.params.commentId);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
