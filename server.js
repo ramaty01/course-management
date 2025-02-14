@@ -307,7 +307,7 @@ app.delete('/notes/:noteId', verifyToken(['user', 'admin', 'teacher']), async (r
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     // Allow deletion if user is admin or the note's author
-    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && req.user.id !== note.userId) {
+    if (!['admin', 'teacher'].includes(req.user.role) && req.user.id !== note.userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -333,7 +333,7 @@ app.put('/notes/:noteId', verifyToken(['user', 'admin', 'teacher']), async (req,
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     // Check if the user is an admin or the author of the note
-    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && note.userId.toString() !== userId) {
+    if (!['admin', 'teacher'].includes(req.user.role) && note.userId.toString() !== userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -425,7 +425,7 @@ app.delete('/comments/:commentId', verifyToken(['user', 'admin', 'teacher']), as
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
     // Allow deletion if user is admin or the comment's author
-    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && req.user.id !== comment.userId) {
+    if (!['admin', 'teacher'].includes(req.user.role) && req.user.id !== comment.userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
@@ -478,7 +478,7 @@ app.put('/comments/:commentId', verifyToken(['user', 'admin', 'teacher']), async
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
     // Check if the user is an admin or the author of the comment
-    if ((req.user.role !== 'admin' || req.user.role !== 'teacher') && comment.userId.toString() !== userId) {
+    if (!['admin', 'teacher'].includes(req.user.role) && comment.userId.toString() !== userId) {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
