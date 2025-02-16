@@ -384,7 +384,7 @@ app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) 
 });
 
 // Flag a note (Admin only)
-app.put('/notes/:noteId/flag', verifyToken(['admin']), async (req, res) => {
+app.put('/notes/:noteId/flag', verifyToken(['user', 'admin']), async (req, res) => {
   const { noteId } = req.params;
 
   try {
@@ -530,7 +530,7 @@ app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req,
 });
 
 // Flag a comment (Admin only)
-app.put('/comments/:commentId/flag', verifyToken(['admin']), async (req, res) => {
+app.put('/comments/:commentId/flag', verifyToken(['user', 'admin']), async (req, res) => {
   try {
     const comment = await Comment.findById(req.params.commentId);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
