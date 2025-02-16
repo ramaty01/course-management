@@ -383,7 +383,7 @@ app.put('/notes/:noteId/vote', verifyToken(['user', 'admin']), async (req, res) 
   }
 });
 
-// Flag a note (Admin only)
+// Flag a note
 app.put('/notes/:noteId/flag', verifyToken(['user', 'admin']), async (req, res) => {
   const { noteId } = req.params;
 
@@ -529,7 +529,7 @@ app.put('/comments/:commentId/vote', verifyToken(['user', 'admin']), async (req,
   }
 });
 
-// Flag a comment (Admin only)
+// Flag a comment
 app.put('/comments/:commentId/flag', verifyToken(['user', 'admin']), async (req, res) => {
   try {
     const comment = await Comment.findById(req.params.commentId);
