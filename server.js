@@ -391,7 +391,7 @@ app.put('/notes/:noteId/flag', verifyToken(['admin', 'teacher']), async (req, re
     const note = await CourseNote.findById(noteId);
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
-    note.isFlagged = true;
+    note.isFlagged = !note.isFlagged;
     await note.save();
     res.json(note);
   } catch (error) {
@@ -535,7 +535,7 @@ app.put('/comments/:commentId/flag', verifyToken(['admin', 'teacher']), async (r
     const comment = await Comment.findById(req.params.commentId);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
-    comment.isFlagged = true;
+    comment.isFlagged = !comment.isFlagged;
     await comment.save();
     res.json(comment);
   } catch (error) {
